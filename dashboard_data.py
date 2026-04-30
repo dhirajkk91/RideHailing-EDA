@@ -20,12 +20,12 @@ COLUMNS_TO_KEEP = [
     "driver_pay",
 ]
 
+PROVIDER_MAP = {
+    "HV0003": "Uber",
+    "HV0005": "Lyft",
+}
 
-def main():
-    OUTPUT_DIR.mkdir(exist_ok=True)
-
-    df = pd.read_parquet(DATA_PATH, columns=COLUMNS_TO_KEEP)
-
+def clean_data(df):
     invalid_miles = df["trip_miles"] <= 0
     invalid_time = df["trip_time"] <= 0
     invalid_fare = df["base_passenger_fare"] <= 0
@@ -40,12 +40,26 @@ def main():
         & (~invalid_time_order)
     )
 
+    clean_df = df[valid_rows].copy()
+
+    clean_df["provider"] = (
+        clean_df["hvfhs_license_num"].map(PROVIDER_MAP).fillna(clean_df["hvfhs_license_num"])
+    )
+    clean_df["trip_minutes"] = clean_df["trip_time"] / 60
+    clean_df["total_fare"] = (
+        clean_df["base_passenger_fare"] + clean_df["tolls"] + clean_df["tips"]
+    )
+    clean_df["pickup_date"] = clean_df["pickup_datetime"].dt.date
+    clean_df["pickup_hour"] = clean_df["pickup_datetime"].dt.hour
+    clean_df["pickup_day"] = clean_df["pickup_datetime"].dt.day_name()
+    clean_df["day_order"] = clean_df["pickup_datetime"].dt.dayofweek
+
     summary = pd.DataFrame(
         [
             {
                 "raw_rows": len(df),
-                "clean_rows": int(valid_rows.sum()),
-                "removed_rows": int((~valid_rows).sum()),
+                "clean_rows": len(clean_df),
+                "removed_rows": len(df) - len(clean_df),
                 "non_positive_miles": int(invalid_miles.sum()),
                 "non_positive_time": int(invalid_time.sum()),
                 "non_positive_base_fare": int(invalid_fare.sum()),
@@ -55,10 +69,37 @@ def main():
         ]
     )
 
+    return clean_df, summary
+
+
+def build_hourly_metrics(clean_df):
+    hourly_metrics = (
+        clean_df.groupby(["provider", "pickup_hour"], as_index=False)
+        .agg(
+            trip_count=("pickup_datetime", "size"),
+            avg_fare=("total_fare", "mean"),
+            avg_miles=("trip_miles", "mean"),
+            avg_minutes=("trip_minutes", "mean"),
+        )
+    )
+
+    return hourly_metrics
+
+
+def main():
+    OUTPUT_DIR.mkdir(exist_ok=True)
+
+    df = pd.read_parquet(DATA_PATH, columns=COLUMNS_TO_KEEP)
+
+    clean_df, summary = clean_data(df)
+    hourly_metrics = build_hourly_metrics(clean_df)
+
     summary.to_csv(OUTPUT_DIR / "summary.csv", index=False)
+    hourly_metrics.to_csv(OUTPUT_DIR / "hourly_metrics.csv", index=False)
 
     print("Created dashboard_data/summary.csv")
-    print(summary.to_string(index=False))
+    print("Created dashboard_data/hourly_metrics.csv")
+    print(hourly_metrics.head().to_string(index=False))
 
 
 if __name__ == "__main__":
