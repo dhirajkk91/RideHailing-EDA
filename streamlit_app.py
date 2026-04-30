@@ -1,4 +1,10 @@
+from pathlib import Path
+
+import pandas as pd
 import streamlit as st
+
+
+SUMMARY_PATH = Path("dashboard_data/summary.csv")
 
 
 st.set_page_config(
@@ -6,8 +12,16 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("NYC Ride-Hailing Trip Analysis")
 
+@st.cache_data
+def load_summary():
+    return pd.read_csv(SUMMARY_PATH)
+
+
+summary = load_summary()
+summary_row = summary.iloc[0]
+
+st.title("NYC Ride-Hailing Trip Analysis")
 st.caption("Milestone 3 Dashboard Prototype")
 
 st.header("Project Topic")
@@ -19,38 +33,37 @@ st.write(
     """
 )
 
-st.header("Main Analytical Question")
+st.header("Dataset Cleaning Summary")
 
-st.write(
-    """
-    How do time of day, pickup location, and provider shape ride-hailing demand
-    and fare patterns in New York City?
-    """
+metric_cols = st.columns(3)
+
+metric_cols[0].metric("Raw trips", f"{summary_row['raw_rows']:,.0f}")
+metric_cols[1].metric("Cleaned trips", f"{summary_row['clean_rows']:,.0f}")
+metric_cols[2].metric("Rows removed", f"{summary_row['removed_rows']:,.0f}")
+
+st.subheader("Cleaning Checks")
+
+cleaning_checks = pd.DataFrame(
+    {
+        "Check": [
+            "Trip miles <= 0",
+            "Trip time <= 0",
+            "Base passenger fare <= 0",
+            "Driver pay <= 0",
+            "Pickup after dropoff",
+        ],
+        "Rows flagged": [
+            summary_row["non_positive_miles"],
+            summary_row["non_positive_time"],
+            summary_row["non_positive_base_fare"],
+            summary_row["non_positive_driver_pay"],
+            summary_row["pickup_after_dropoff"],
+        ],
+    }
 )
 
-st.header("Dataset")
-
-st.write(
-    """
-    The dataset comes from the NYC TLC High Volume For-Hire Vehicle trip records.
-    It includes trip pickup and dropoff times, pickup and dropoff location IDs,
-    trip distance, trip duration, passenger fare, tips, tolls, and driver pay.
-    """
-)
-
-st.header("Dashboard Plan")
-
-st.write(
-    """
-    This dashboard will eventually include interactive views for:
-    """
-)
-
-st.markdown(
-    """
-    - Ride demand by hour and day of week
-    - Pickup activity by NYC taxi zone
-    - Fare patterns by distance and provider
-    - Provider comparison between Uber and Lyft
-    """
+st.dataframe(
+    cleaning_checks,
+    hide_index=True,
+    use_container_width=True,
 )
