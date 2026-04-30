@@ -7,7 +7,6 @@ This project analyzes January 2026 high-volume ride-hailing trip data using Pyth
 ## Files
 
 - `data.ipynb` - Main notebook containing the data cleaning and exploratory analysis.
-- `fhvhv_tripdata_2026-01.parquet` - Raw ride-hailing trip dataset used by the notebook.
 - `requirements.txt` - Python packages needed to run the notebook.
 
 ## Work Completed So Far
@@ -111,6 +110,4 @@ Start Jupyter and open the notebook:
 jupyter notebook data.ipynb
 ```
 
-## Notes
 
-The parquet dataset is large, so the notebook samples rows for some plots to keep visualization performance manageable. Make sure `fhvhv_tripdata_2026-01.parquet` stays in the same folder as `data.ipynb`, because the notebook reads it using a relative file path.
