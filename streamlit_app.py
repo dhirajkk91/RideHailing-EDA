@@ -59,6 +59,14 @@ selected_providers = st.sidebar.multiselect(
     default=providers,
 )
 
+boroughs = sorted(pickup_zones["Borough"].dropna().unique())
+
+selected_boroughs = st.sidebar.multiselect(
+    "Pickup borough",
+    options=boroughs,
+    default=boroughs,
+)
+
 st.sidebar.markdown("Pickup time range")
 
 from_col, to_col = st.sidebar.columns(2)
@@ -262,6 +270,7 @@ st.header("Pickup Location Patterns")
 
 filtered_pickup_zones = pickup_zones[
     pickup_zones["provider"].isin(selected_providers)
+    & pickup_zones["Borough"].isin(selected_boroughs)
 ].copy()
 
 top_pickup_zones = (
