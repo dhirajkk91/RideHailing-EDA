@@ -88,14 +88,14 @@ def build_hourly_metrics(clean_df):
 
 def build_day_hour_metrics(clean_df):
     day_hour_metrics = (
-        clean_df.groupby(["pickup_day", "day_order", "pickup_hour"], as_index=False)
+        clean_df.groupby(["provider", "pickup_day", "day_order", "pickup_hour"], as_index=False)
         .agg(
             trip_count=("pickup_datetime", "size"),
             avg_fare=("total_fare", "mean"),
             avg_miles=("trip_miles", "mean"),
             avg_minutes=("trip_minutes", "mean"),
         )
-        .sort_values(["day_order", "pickup_hour"])
+        .sort_values(["provider", "day_order", "pickup_hour"])
     )
 
     return day_hour_metrics

@@ -21,7 +21,7 @@ st.set_page_config(
     layout="wide",
 )
 
-@st.cache_data
+@st.cache_data(ttl=0)
 def load_data():
     summary = pd.read_csv(SUMMARY_PATH)
     hourly = pd.read_csv(HOURLY_PATH)
@@ -47,6 +47,7 @@ selected_providers = st.sidebar.multiselect(
 )
 
 filtered_hourly = hourly[hourly["provider"].isin(selected_providers)].copy()
+filtered_day_hour = day_hour[day_hour["provider"].isin(selected_providers)].copy()
 
 st.title("NYC Ride-Hailing Trip Analysis")
 st.caption("Milestone 3 Dashboard Prototype")
@@ -94,7 +95,7 @@ with left_col:
     st.plotly_chart(fig_hourly, use_container_width=True)
 
 with right_col:
-    heatmap_data = day_hour.pivot_table(
+    heatmap_data = filtered_day_hour.pivot_table(
         index="pickup_day",
         columns="pickup_hour",
         values="trip_count",
