@@ -9,6 +9,7 @@ SUMMARY_PATH = Path("dashboard_data/summary.csv")
 HOURLY_PATH = Path("dashboard_data/hourly_metrics.csv")
 DAY_HOUR_PATH = Path("dashboard_data/day_hour_metrics.csv")
 PICKUP_ZONE_PATH = Path("dashboard_data/pickup_zone_metrics.csv")
+ZONE_LOOKUP_PATH = Path("dashboard_data/taxi_zone_lookup.csv")
 
 DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -28,6 +29,16 @@ def load_data():
     hourly = pd.read_csv(HOURLY_PATH, parse_dates=["pickup_date"])
     day_hour = pd.read_csv(DAY_HOUR_PATH, parse_dates=["pickup_date"])
     pickup_zones = pd.read_csv(PICKUP_ZONE_PATH)
+
+    zone_lookup = pd.read_csv(ZONE_LOOKUP_PATH)
+    zone_lookup = zone_lookup.rename(columns={"LocationID": "PULocationID"})
+    zone_lookup["pickup_zone"] = zone_lookup["Zone"] + ", " + zone_lookup["Borough"]
+
+    pickup_zones = pickup_zones.merge(
+        zone_lookup[["PULocationID", "Borough", "Zone", "pickup_zone"]],
+        on="PULocationID",
+        how="left",
+    )
 
     hourly["hour_label"] = hourly["pickup_hour"].map(HOUR_LABELS)
     day_hour["hour_label"] = day_hour["pickup_hour"].map(HOUR_LABELS)
@@ -254,7 +265,7 @@ filtered_pickup_zones = pickup_zones[
 ].copy()
 
 top_pickup_zones = (
-    filtered_pickup_zones.groupby("PULocationID", as_index=False)
+    filtered_pickup_zones.groupby(["pickup_zone", "Borough", "Zone"], as_index=False)
     .agg(
         trip_count=("trip_count", "sum"),
         avg_fare=("avg_fare", "mean"),
@@ -265,17 +276,17 @@ top_pickup_zones = (
     .head(10)
 )
 
-top_pickup_zones["PULocationID"] = top_pickup_zones["PULocationID"].astype(str)
-
 fig_pickup_zones = px.bar(
     top_pickup_zones.sort_values("trip_count"),
     x="trip_count",
-    y="PULocationID",
+    y="pickup_zone",
+    color="Borough",
     orientation="h",
-    title="Top 10 Pickup Location IDs",
+    title="Top 10 Pickup Areas",
     labels={
         "trip_count": "Trip count",
-        "PULocationID": "Pickup Location ID",
+        "pickup_zone": "Pickup area",
+        "Borough": "Borough",
     },
 )
 
