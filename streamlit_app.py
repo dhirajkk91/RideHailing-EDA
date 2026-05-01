@@ -24,8 +24,8 @@ st.set_page_config(
 @st.cache_data(ttl=0)
 def load_data():
     summary = pd.read_csv(SUMMARY_PATH)
-    hourly = pd.read_csv(HOURLY_PATH)
-    day_hour = pd.read_csv(DAY_HOUR_PATH)
+    hourly = pd.read_csv(HOURLY_PATH, parse_dates=["pickup_date"])
+    day_hour = pd.read_csv(DAY_HOUR_PATH, parse_dates=["pickup_date"])
 
     hourly["hour_label"] = hourly["pickup_hour"].map(HOUR_LABELS)
     day_hour["hour_label"] = day_hour["pickup_hour"].map(HOUR_LABELS)
@@ -73,19 +73,39 @@ else:
     selected_hours = list(range(start_hour, 24)) + list(range(0, end_hour + 1))
 
 
+min_date = hourly["pickup_date"].min().date()
+max_date = hourly["pickup_date"].max().date()
+
+selected_dates = st.sidebar.date_input(
+    "Pickup dates",
+    value=(min_date, max_date),
+    min_value=min_date,
+    max_value=max_date,
+)
+
+if isinstance(selected_dates, tuple) and len(selected_dates) == 2:
+    start_date = pd.to_datetime(selected_dates[0])
+    end_date = pd.to_datetime(selected_dates[1])
+else:
+    start_date = pd.to_datetime(min_date)
+    end_date = pd.to_datetime(max_date)
+
 filtered_hourly = hourly[
     hourly["provider"].isin(selected_providers)
     & hourly["pickup_hour"].isin(selected_hours)
+    & hourly["pickup_date"].between(start_date, end_date)
 ].copy()
 
 filtered_day_hour = day_hour[
     day_hour["provider"].isin(selected_providers)
     & day_hour["pickup_hour"].isin(selected_hours)
+    & day_hour["pickup_date"].between(start_date, end_date)
 ].copy()
 
-
-filtered_hourly = hourly[hourly["provider"].isin(selected_providers)].copy()
-filtered_day_hour = day_hour[day_hour["provider"].isin(selected_providers)].copy()
+hourly_plot = (
+    filtered_hourly.groupby(["provider", "pickup_hour", "hour_label"], as_index=False)
+    .agg(trip_count=("trip_count", "sum"))
+)
 
 st.title("NYC Ride-Hailing Trip Analysis")
 st.caption("Milestone 3 Dashboard Prototype")
@@ -104,7 +124,7 @@ left_col, right_col = st.columns(2)
 
 with left_col:
     fig_hourly = px.line(
-        filtered_hourly,
+        hourly_plot,
         x="pickup_hour",
         y="trip_count",
         color="provider",
