@@ -36,6 +36,18 @@ def load_data():
 summary, hourly, day_hour = load_data()
 summary_row = summary.iloc[0]
 
+st.sidebar.header("Filters")
+
+providers = sorted(hourly["provider"].unique())
+
+selected_providers = st.sidebar.multiselect(
+    "Provider",
+    options=providers,
+    default=providers,
+)
+
+filtered_hourly = hourly[hourly["provider"].isin(selected_providers)].copy()
+
 st.title("NYC Ride-Hailing Trip Analysis")
 st.caption("Milestone 3 Dashboard Prototype")
 
@@ -47,14 +59,13 @@ metric_cols[0].metric("Raw trips", f"{summary_row['raw_rows']:,.0f}")
 metric_cols[1].metric("Cleaned trips", f"{summary_row['clean_rows']:,.0f}")
 metric_cols[2].metric("Rows removed", f"{summary_row['removed_rows']:,.0f}")
 
-
 st.header("Demand Timing")
 
 left_col, right_col = st.columns(2)
 
 with left_col:
     fig_hourly = px.line(
-        hourly,
+        filtered_hourly,
         x="pickup_hour",
         y="trip_count",
         color="provider",
@@ -111,10 +122,10 @@ with right_col:
 
     st.plotly_chart(fig_heatmap, use_container_width=True)
 
-st.subheader("Day and Hour Metrics Data")
+st.subheader("Filtered Hourly Metrics Data")
 
 st.dataframe(
-    day_hour,
+    filtered_hourly,
     hide_index=True,
     use_container_width=True,
 )
