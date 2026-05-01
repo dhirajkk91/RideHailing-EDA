@@ -106,7 +106,20 @@ def build_day_hour_metrics(clean_df):
 
     return day_hour_metrics
 
+def build_pickup_zone_metrics(clean_df):
+    pickup_zone_metrics = (
+        clean_df.groupby(["provider", "PULocationID"], as_index=False)
+        .agg(
+            trip_count=("pickup_datetime", "size"),
+            avg_fare=("total_fare", "mean"),
+            avg_miles=("trip_miles", "mean"),
+            avg_minutes=("trip_minutes", "mean"),
+        )
+        .sort_values("trip_count", ascending=False)
+    )
 
+    return pickup_zone_metrics
+    
 def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -115,15 +128,18 @@ def main():
     clean_df, summary = clean_data(df)
     hourly_metrics = build_hourly_metrics(clean_df)
     day_hour_metrics = build_day_hour_metrics(clean_df)
+    pickup_zone_metrics = build_pickup_zone_metrics(clean_df)
 
     summary.to_csv(OUTPUT_DIR / "summary.csv", index=False)
     hourly_metrics.to_csv(OUTPUT_DIR / "hourly_metrics.csv", index=False)
     day_hour_metrics.to_csv(OUTPUT_DIR / "day_hour_metrics.csv", index=False)
+    pickup_zone_metrics.to_csv(OUTPUT_DIR / "pickup_zone_metrics.csv", index=False)
 
     print("Created dashboard_data/summary.csv")
     print("Created dashboard_data/hourly_metrics.csv")
     print("Created dashboard_data/day_hour_metrics.csv")
-    print(day_hour_metrics.head().to_string(index=False))
+    print("Created dashboard_data/pickup_zone_metrics.csv")
+    print(pickup_zone_metrics.head().to_string(index=False))
 
 
 if __name__ == "__main__":

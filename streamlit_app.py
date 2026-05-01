@@ -8,6 +8,7 @@ import streamlit as st
 SUMMARY_PATH = Path("dashboard_data/summary.csv")
 HOURLY_PATH = Path("dashboard_data/hourly_metrics.csv")
 DAY_HOUR_PATH = Path("dashboard_data/day_hour_metrics.csv")
+PICKUP_ZONE_PATH = Path("dashboard_data/pickup_zone_metrics.csv")
 
 DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -26,14 +27,15 @@ def load_data():
     summary = pd.read_csv(SUMMARY_PATH)
     hourly = pd.read_csv(HOURLY_PATH, parse_dates=["pickup_date"])
     day_hour = pd.read_csv(DAY_HOUR_PATH, parse_dates=["pickup_date"])
+    pickup_zones = pd.read_csv(PICKUP_ZONE_PATH)
 
     hourly["hour_label"] = hourly["pickup_hour"].map(HOUR_LABELS)
     day_hour["hour_label"] = day_hour["pickup_hour"].map(HOUR_LABELS)
 
-    return summary, hourly, day_hour
+    return summary, hourly, day_hour, pickup_zones
 
 
-summary, hourly, day_hour = load_data()
+summary, hourly, day_hour, pickup_zones = load_data()
 summary_row = summary.iloc[0]
 
 st.sidebar.header("Filters")
@@ -244,6 +246,46 @@ with right_col:
     )
 
     st.plotly_chart(fig_heatmap, use_container_width=True)
+
+st.header("Pickup Location Patterns")
+
+filtered_pickup_zones = pickup_zones[
+    pickup_zones["provider"].isin(selected_providers)
+].copy()
+
+top_pickup_zones = (
+    filtered_pickup_zones.groupby("PULocationID", as_index=False)
+    .agg(
+        trip_count=("trip_count", "sum"),
+        avg_fare=("avg_fare", "mean"),
+        avg_miles=("avg_miles", "mean"),
+        avg_minutes=("avg_minutes", "mean"),
+    )
+    .sort_values("trip_count", ascending=False)
+    .head(10)
+)
+
+top_pickup_zones["PULocationID"] = top_pickup_zones["PULocationID"].astype(str)
+
+fig_pickup_zones = px.bar(
+    top_pickup_zones.sort_values("trip_count"),
+    x="trip_count",
+    y="PULocationID",
+    orientation="h",
+    title="Top 10 Pickup Location IDs",
+    labels={
+        "trip_count": "Trip count",
+        "PULocationID": "Pickup Location ID",
+    },
+)
+
+st.plotly_chart(fig_pickup_zones, use_container_width=True)
+
+st.dataframe(
+    top_pickup_zones,
+    hide_index=True,
+    use_container_width=True,
+)
 
 st.subheader("Filtered Hourly Metrics Data")
 
