@@ -107,16 +107,80 @@ hourly_plot = (
     .agg(trip_count=("trip_count", "sum"))
 )
 
+filtered_trip_count = filtered_hourly["trip_count"].sum()
+
+if filtered_trip_count > 0:
+    avg_fare = (
+        (filtered_hourly["avg_fare"] * filtered_hourly["trip_count"]).sum()
+        / filtered_trip_count
+    )
+    avg_miles = (
+        (filtered_hourly["avg_miles"] * filtered_hourly["trip_count"]).sum()
+        / filtered_trip_count
+    )
+    avg_minutes = (
+        (filtered_hourly["avg_minutes"] * filtered_hourly["trip_count"]).sum()
+        / filtered_trip_count
+    )
+
+    peak_hour_row = (
+        filtered_hourly.groupby("pickup_hour", as_index=False)["trip_count"]
+        .sum()
+        .sort_values("trip_count", ascending=False)
+        .head(1)
+    )
+
+    peak_hour = HOUR_LABELS[int(peak_hour_row.iloc[0]["pickup_hour"])]
+else:
+    avg_fare = 0
+    avg_miles = 0
+    avg_minutes = 0
+    peak_hour = "N/A"
+
 st.title("NYC Ride-Hailing Trip Analysis")
 st.caption("Milestone 3 Dashboard Prototype")
 
 st.header("Dataset Cleaning Summary")
 
-metric_cols = st.columns(3)
+metric_cols = st.columns(5)
 
-metric_cols[0].metric("Raw trips", f"{summary_row['raw_rows']:,.0f}")
-metric_cols[1].metric("Cleaned trips", f"{summary_row['clean_rows']:,.0f}")
-metric_cols[2].metric("Rows removed", f"{summary_row['removed_rows']:,.0f}")
+metric_cols[0].metric("Filtered trips", f"{filtered_trip_count:,.0f}")
+metric_cols[1].metric("Avg fare", f"${avg_fare:,.2f}")
+metric_cols[2].metric("Avg distance", f"{avg_miles:,.2f} mi")
+metric_cols[3].metric("Avg duration", f"{avg_minutes:,.1f} min")
+metric_cols[4].metric("Peak hour", peak_hour)
+
+with st.expander("Cleaning summary"):
+    cleaning_checks = pd.DataFrame(
+        {
+            "Check": [
+                "Raw trips",
+                "Cleaned trips",
+                "Rows removed",
+                "Trip miles <= 0",
+                "Trip time <= 0",
+                "Base passenger fare <= 0",
+                "Driver pay <= 0",
+                "Pickup after dropoff",
+            ],
+            "Rows": [
+                summary_row["raw_rows"],
+                summary_row["clean_rows"],
+                summary_row["removed_rows"],
+                summary_row["non_positive_miles"],
+                summary_row["non_positive_time"],
+                summary_row["non_positive_base_fare"],
+                summary_row["non_positive_driver_pay"],
+                summary_row["pickup_after_dropoff"],
+            ],
+        }
+    )
+
+    st.dataframe(
+        cleaning_checks,
+        hide_index=True,
+        use_container_width=True,
+    )
 
 st.header("Demand Timing")
 
