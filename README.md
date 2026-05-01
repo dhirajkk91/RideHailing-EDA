@@ -1,39 +1,38 @@
-# Ride-Hailing Data Cleaning and EDA
+# NYC Ride-Hailing Trip Analysis
 
 Author: Dhiraj Karki
 
-This project analyzes January 2026 high-volume ride-hailing trip data using Python. The work so far focuses on loading the raw parquet dataset, cleaning invalid records, creating useful trip-level features, and performing exploratory data analysis on demand, fares, providers, pickup locations, and trip behavior.
+This project analyzes January 2026 high-volume ride-hailing trips in New York City using NYC Taxi & Limousine Commission trip records. The project includes a data cleaning and EDA notebook, a dashboard data preparation script, a Streamlit dashboard prototype, and a written Milestone 3 narrative.
+
+The main project question is:
+
+**How do time of day, pickup location, and provider shape ride-hailing demand and fare patterns in New York City?**
 
 ## Files
 
-- `data.ipynb` - Main notebook containing the data cleaning and exploratory analysis.
-- `requirements.txt` - Python packages needed to run the notebook.
+- `data.ipynb` - Jupyter notebook for data loading, cleaning, feature engineering, and exploratory data analysis.
+- `dashboard_data.py` - Script that creates precomputed CSV files for the Streamlit dashboard.
+- `streamlit_app.py` - Streamlit dashboard prototype with interactive Plotly visualizations.
+- `milestone_3_draft.md` - Draft written narrative for Milestone 3 covering question, findings, and limitations.
+- `dashboard_data/` - Generated dashboard data files, including summary tables, demand aggregates, pickup zone metrics, trip sample data, and TLC taxi zone lookup data.
+- `requirements.txt` - Python packages required for the project.
 
-## Work Completed So Far
+## Data Source
 
-### 1. Data Loading
+The project uses the January 2026 NYC TLC High Volume For-Hire Vehicle trip record file. The dashboard also uses the official TLC taxi zone lookup table to convert pickup location IDs into readable borough and zone names.
 
-The notebook loads the parquet dataset with pandas and previews the raw data. It also checks the dataset shape, column names, data types, missing values, and summary statistics.
+Provider mapping:
 
-### 2. Column Selection
+- `HV0003` - Uber
+- `HV0005` - Lyft
 
-The analysis keeps the columns most relevant for trip behavior and fare analysis:
+## Work Completed
 
-- `hvfhs_license_num`
-- `pickup_datetime`
-- `dropoff_datetime`
-- `PULocationID`
-- `DOLocationID`
-- `trip_miles`
-- `trip_time`
-- `base_passenger_fare`
-- `tolls`
-- `tips`
-- `driver_pay`
+### 1. Data Cleaning and EDA
 
-### 3. Data Cleaning
+The notebook loads the raw parquet file, keeps the fields most relevant to trip behavior and fare analysis, checks data quality, removes invalid records, engineers new features, and creates exploratory visualizations.
 
-Invalid trip records are identified and removed, including rows where:
+Cleaning removes rows where:
 
 - trip miles are less than or equal to zero
 - trip time is less than or equal to zero
@@ -41,62 +40,68 @@ Invalid trip records are identified and removed, including rows where:
 - driver pay is less than or equal to zero
 - pickup time occurs after dropoff time
 
-A cleaning summary is created to show how many rows were affected by each issue.
+Feature engineering creates:
 
-### 4. Feature Engineering
+- `trip_minutes`
+- `total_fare`
+- `fare_per_mile`
+- `speed_mph`
+- `pickup_date`
+- `pickup_hour`
+- `pickup_day`
+- provider name
 
-Several new columns are created to support the analysis:
+### 2. Dashboard Data Preparation
 
-- `trip_minutes` - trip duration converted from seconds to minutes
-- `total_fare` - base passenger fare plus tolls and tips
-- `fare_per_mile` - total fare divided by trip miles
-- `speed_mph` - estimated trip speed in miles per hour
-- `pickup_hour` - hour of pickup
-- `pickup_day` - day of week of pickup
+The dashboard uses precomputed CSV files so Streamlit does not need to load the full raw dataset every time. Run:
 
-### 5. Exploratory Data Analysis
+```bash
+python dashboard_data.py
+```
 
-The notebook includes visual and tabular analysis for:
+This creates:
 
-- distributions of trip miles, trip duration, and total fare
-- trip demand by pickup hour
-- trip demand by day of week
-- top 10 pickup location IDs
-- provider-level summary for Uber and Lyft
-- average fare by hour
-- relationship between trip miles and total fare
-- demand heatmap by day and hour
-- correlation heatmap for numeric trip metrics
+- `dashboard_data/summary.csv`
+- `dashboard_data/hourly_metrics.csv`
+- `dashboard_data/day_hour_metrics.csv`
+- `dashboard_data/pickup_zone_metrics.csv`
+- `dashboard_data/trip_sample.csv`
+
+### 3. Streamlit Dashboard Prototype
+
+The dashboard includes tabs for:
+
+- **Overview** - filter-aware KPI cards and cleaning summary
+- **Demand Timing** - interactive Plotly line chart by pickup hour and heatmap by day/hour
+- **Pickup Locations** - top pickup areas using TLC taxi zone names
+- **Provider Comparison** - Uber and Lyft trip volume and average trip metric comparison
+- **Fare Analysis** - fare vs distance scatterplot using sampled trip-level data
+
+Dashboard filters include:
+
+- provider
+- pickup borough
+- pickup time range
+- pickup date range
 
 ## Initial Findings
 
-- Ride demand changes throughout the day, with strong activity during morning work hours and the highest activity in the late afternoon and evening.
-- Demand changes across the week, with Saturday showing the highest trip volume and Sunday being less busy.
-- Ride-hailing activity is concentrated in a small group of pickup location IDs, suggesting geographic clustering.
-- Trip distance and total fare have a strong positive relationship, meaning longer trips usually cost more.
-- Average fare changes by hour, likely because trip distance and rider behavior vary throughout the day.
-- Demand depends on both day of week and hour, as shown by the day-by-hour heatmap.
+- Ride-hailing demand is highest in the late afternoon and evening, with 6 PM as the busiest pickup hour in the cleaned January 2026 data.
+- Saturday has the highest overall trip volume, followed by Friday and Thursday.
+- Pickup activity is concentrated in a smaller set of high-volume areas, including airports, dense residential areas, entertainment districts, and central business districts.
+- Uber accounts for a larger share of cleaned trips than Lyft in this month.
+- Trip distance and total fare have a strong positive relationship, although fares still vary for trips of similar distance.
 
-## Provider Mapping
+## Limitations
 
-The notebook uses the following high-volume for-hire service license mapping:
-
-- `HV0003` - Uber
-- `HV0005` - Lyft
-
-## Future Exploration
-
-Possible next steps include:
-
-- mapping pickup and dropoff location IDs to actual NYC taxi zones
-- comparing trip patterns by provider in more detail
-- investigating whether high fares are caused by longer distance, time of day, tolls, or tipping behavior
-- analyzing trip efficiency using speed and duration by hour or pickup zone
-- building a machine learning model to predict total fare or trip demand
+- The analysis is descriptive and does not prove causation.
+- The dataset covers only January 2026, so results should not be generalized to the full year without more data.
+- Weather, events, traffic, transit disruptions, and surge pricing are not included.
+- The fare-distance scatterplot uses a sampled trip-level dataset for dashboard performance.
 
 ## Setup
 
-Create and activate a virtual environment, then install the dependencies:
+Create and activate a virtual environment, then install dependencies:
 
 ```bash
 python3 -m venv .venv
@@ -104,10 +109,29 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Start Jupyter and open the notebook:
+On Windows:
 
 ```bash
-jupyter notebook data.ipynb
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
+Generate dashboard data:
 
+```bash
+python dashboard_data.py
+```
+
+Run the Streamlit dashboard:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+## Milestone 3 Deliverables
+
+- Working Streamlit dashboard prototype: `streamlit_app.py`
+- At least two interactive Plotly views: included in the Demand Timing tab and additional dashboard tabs
+- Draft written narrative: `milestone_3_draft.md`
+- Dashboard data preparation pipeline: `dashboard_data.py`
