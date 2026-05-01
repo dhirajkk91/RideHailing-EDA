@@ -22,6 +22,7 @@ HOUR_LABELS = {
 st.set_page_config(
     page_title="NYC Ride-Hailing Trip Analysis",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 @st.cache_data(ttl=0)
@@ -58,6 +59,7 @@ def load_data():
 summary, hourly, day_hour, pickup_zones, trip_sample = load_data()
 summary_row = summary.iloc[0]
 
+# Sidebar filters
 st.sidebar.header("Filters")
 
 providers = sorted(hourly["provider"].unique())
@@ -120,6 +122,8 @@ else:
     start_date = pd.to_datetime(min_date)
     end_date = pd.to_datetime(max_date)
 
+# Filter data based on sidebar selections
+
 filtered_hourly = hourly[
     hourly["provider"].isin(selected_providers)
     & hourly["pickup_hour"].isin(selected_hours)
@@ -132,10 +136,10 @@ filtered_day_hour = day_hour[
     & day_hour["pickup_date"].between(start_date, end_date)
 ].copy()
 
-hourly_plot = (
-    filtered_hourly.groupby(["provider", "pickup_hour", "hour_label"], as_index=False)
-    .agg(trip_count=("trip_count", "sum"))
-)
+filtered_pickup_zones = pickup_zones[
+    pickup_zones["provider"].isin(selected_providers)
+    & pickup_zones["Borough"].isin(selected_boroughs)
+].copy()
 
 filtered_trip_sample = trip_sample[
     trip_sample["provider"].isin(selected_providers)
@@ -143,6 +147,13 @@ filtered_trip_sample = trip_sample[
     & trip_sample["pickup_hour"].isin(selected_hours)
     & trip_sample["pickup_date"].between(start_date, end_date)
 ].copy()
+
+# Aggregate hourly metrics to calculate overall averages for the filtered data
+
+hourly_plot = (
+    filtered_hourly.groupby(["provider", "pickup_hour", "hour_label"], as_index=False)
+    .agg(trip_count=("trip_count", "sum"))
+)
 
 filtered_trip_count = filtered_hourly["trip_count"].sum()
 
@@ -174,264 +185,285 @@ else:
     avg_minutes = 0
     peak_hour = "N/A"
 
+# Main Page Content
+
 st.title("NYC Ride-Hailing Trip Analysis")
 st.caption("Milestone 3 Dashboard Prototype")
 
-st.header("Dataset Cleaning Summary")
+st.write(
+    """
+    This dashboard explores January 2026 NYC high-volume ride-hailing trips by
+    demand timing, pickup location, provider, and fare behavior.
+    """
+)
 
-metric_cols = st.columns(5)
+overview_tab, timing_tab, location_tab, provider_tab, fare_tab = st.tabs(
+    ["Overview", "Demand Timing", "Pickup Locations", "Provider Comparison", "Fare Analysis"]
+)
 
-metric_cols[0].metric("Filtered trips", f"{filtered_trip_count:,.0f}")
-metric_cols[1].metric("Avg fare", f"${avg_fare:,.2f}")
-metric_cols[2].metric("Avg distance", f"{avg_miles:,.2f} mi")
-metric_cols[3].metric("Avg duration", f"{avg_minutes:,.1f} min")
-metric_cols[4].metric("Peak hour", peak_hour)
+# Display summary metrics in the Overview tab
 
-with st.expander("Cleaning summary"):
-    cleaning_checks = pd.DataFrame(
+with overview_tab:
+    st.header("Dashboard Overview")
+
+    metric_cols = st.columns(5)
+
+    metric_cols[0].metric("Filtered trips", f"{filtered_trip_count:,.0f}")
+    metric_cols[1].metric("Avg fare", f"${avg_fare:,.2f}")
+    metric_cols[2].metric("Avg distance", f"{avg_miles:,.2f} mi")
+    metric_cols[3].metric("Avg duration", f"{avg_minutes:,.1f} min")
+    metric_cols[4].metric("Peak hour", peak_hour)
+
+    with st.expander("Cleaning summary"):
+        cleaning_checks = pd.DataFrame(
+            {
+                "Check": [
+                    "Raw trips",
+                    "Cleaned trips",
+                    "Rows removed",
+                    "Trip miles <= 0",
+                    "Trip time <= 0",
+                    "Base passenger fare <= 0",
+                    "Driver pay <= 0",
+                    "Pickup after dropoff",
+                ],
+                "Rows": [
+                    summary_row["raw_rows"],
+                    summary_row["clean_rows"],
+                    summary_row["removed_rows"],
+                    summary_row["non_positive_miles"],
+                    summary_row["non_positive_time"],
+                    summary_row["non_positive_base_fare"],
+                    summary_row["non_positive_driver_pay"],
+                    summary_row["pickup_after_dropoff"],
+                ],
+            }
+        )
+
+        st.dataframe(
+            cleaning_checks,
+            hide_index=True,
+            use_container_width=True,
+        )
+
+# Demand Timing tab with hourly line chart and day-hour heatmap
+
+with timing_tab:
+    st.header("Demand Timing")
+
+    left_col, right_col = st.columns(2)
+
+    with left_col:
+        fig_hourly = px.line(
+            hourly_plot,
+            x="pickup_hour",
+            y="trip_count",
+            color="provider",
+            markers=True,
+            title=f"Ride-Hailing Demand by Pickup Hour ({HOUR_LABELS[start_hour]} to {HOUR_LABELS[end_hour]})",
+            labels={
+                "pickup_hour": "Pickup time",
+                "trip_count": "Trip count",
+                "provider": "Provider",
+            },
+            custom_data=["hour_label"],
+        )
+
+        fig_hourly.update_traces(
+            hovertemplate="<b>%{customdata[0]}</b><br>%{y:,.0f} trips<extra>%{fullData.name}</extra>"
+        )
+
+        fig_hourly.update_xaxes(
+            tickmode="array",
+            tickvals=[0, 3, 6, 9, 12, 15, 18, 21, 23],
+            ticktext=[HOUR_LABELS[h] for h in [0, 3, 6, 9, 12, 15, 18, 21, 23]],
+        )
+
+        fig_hourly.update_layout(hovermode="x unified")
+
+        st.plotly_chart(fig_hourly, use_container_width=True)
+
+    with right_col:
+        heatmap_data = filtered_day_hour.pivot_table(
+            index="pickup_day",
+            columns="pickup_hour",
+            values="trip_count",
+            aggfunc="sum",
+            fill_value=0,
+        ).reindex(DAY_ORDER)
+
+        fig_heatmap = px.imshow(
+            heatmap_data,
+            aspect="auto",
+            color_continuous_scale="YlGnBu",
+            title="Trip Demand by Day and Hour",
+            labels={
+                "x": "Pickup time",
+                "y": "Pickup day",
+                "color": "Trips",
+            },
+        )
+
+        fig_heatmap.update_xaxes(
+            tickmode="array",
+            tickvals=[0, 3, 6, 9, 12, 15, 18, 21, 23],
+            ticktext=[HOUR_LABELS[h] for h in [0, 3, 6, 9, 12, 15, 18, 21, 23]],
+        )
+
+        st.plotly_chart(fig_heatmap, use_container_width=True)
+
+# Pickup Location tab with top pickup zones bar chart and data table
+
+with location_tab:
+    st.header("Pickup Location Patterns")
+
+    top_pickup_zones = (
+        filtered_pickup_zones.groupby(["pickup_zone", "Borough", "Zone"], as_index=False)
+        .agg(
+            trip_count=("trip_count", "sum"),
+            avg_fare=("avg_fare", "mean"),
+            avg_miles=("avg_miles", "mean"),
+            avg_minutes=("avg_minutes", "mean"),
+        )
+        .sort_values("trip_count", ascending=False)
+        .head(10)
+    )
+
+    fig_pickup_zones = px.bar(
+        top_pickup_zones.sort_values("trip_count"),
+        x="trip_count",
+        y="pickup_zone",
+        color="Borough",
+        orientation="h",
+        title="Top 10 Pickup Areas",
+        labels={
+            "trip_count": "Trip count",
+            "pickup_zone": "Pickup area",
+            "Borough": "Borough",
+        },
+    )
+
+    st.plotly_chart(fig_pickup_zones, use_container_width=True)
+
+    st.dataframe(
+        top_pickup_zones,
+        hide_index=True,
+        use_container_width=True,
+    )
+# Provider Comparison tab with trip count and average metrics bar charts, and data table
+
+with provider_tab:
+    st.header("Provider Comparison")
+
+    provider_summary = (
+        filtered_hourly.groupby("provider", as_index=False)
+        .agg(
+            trip_count=("trip_count", "sum"),
+            avg_fare=("avg_fare", "mean"),
+            avg_miles=("avg_miles", "mean"),
+            avg_minutes=("avg_minutes", "mean"),
+        )
+        .sort_values("trip_count", ascending=False)
+    )
+
+    provider_summary_long = provider_summary.melt(
+        id_vars="provider",
+        value_vars=["avg_fare", "avg_miles", "avg_minutes"],
+        var_name="metric",
+        value_name="value",
+    )
+
+    provider_summary_long["metric"] = provider_summary_long["metric"].map(
         {
-            "Check": [
-                "Raw trips",
-                "Cleaned trips",
-                "Rows removed",
-                "Trip miles <= 0",
-                "Trip time <= 0",
-                "Base passenger fare <= 0",
-                "Driver pay <= 0",
-                "Pickup after dropoff",
-            ],
-            "Rows": [
-                summary_row["raw_rows"],
-                summary_row["clean_rows"],
-                summary_row["removed_rows"],
-                summary_row["non_positive_miles"],
-                summary_row["non_positive_time"],
-                summary_row["non_positive_base_fare"],
-                summary_row["non_positive_driver_pay"],
-                summary_row["pickup_after_dropoff"],
-            ],
+            "avg_fare": "Average Fare",
+            "avg_miles": "Average Miles",
+            "avg_minutes": "Average Minutes",
         }
     )
 
+    left_col, right_col = st.columns(2)
+
+    with left_col:
+        fig_provider_trips = px.bar(
+            provider_summary,
+            x="provider",
+            y="trip_count",
+            color="provider",
+            title="Trip Count by Provider",
+            labels={
+                "provider": "Provider",
+                "trip_count": "Trip count",
+            },
+        )
+
+        st.plotly_chart(fig_provider_trips, use_container_width=True)
+
+    with right_col:
+        fig_provider_metrics = px.bar(
+            provider_summary_long,
+            x="provider",
+            y="value",
+            color="metric",
+            barmode="group",
+            title="Average Trip Metrics by Provider",
+            labels={
+                "provider": "Provider",
+                "value": "Value",
+                "metric": "Metric",
+            },
+        )
+
+        st.plotly_chart(fig_provider_metrics, use_container_width=True)
+
     st.dataframe(
-        cleaning_checks,
+        provider_summary,
         hide_index=True,
         use_container_width=True,
     )
 
-st.header("Demand Timing")
+# Fare Analysis tab with fare vs distance scatter plot and correlation metric
+with fare_tab:
+    st.header("Fare and Distance Relationship")
 
-left_col, right_col = st.columns(2)
+    if filtered_trip_sample.empty:
+        st.warning("No sampled trips match the selected filters.")
+    else:
+        fig_fare_distance = px.scatter(
+            filtered_trip_sample,
+            x="trip_miles",
+            y="total_fare",
+            color="provider",
+            hover_name="pickup_zone",
+            hover_data={
+                "Borough": True,
+                "pickup_day": True,
+                "hour_label": True,
+                "trip_minutes": ":.1f",
+                "fare_per_mile": ":$.2f",
+                "provider": False,
+            },
+            opacity=0.5,
+            title="Total Fare vs Trip Distance",
+            labels={
+                "trip_miles": "Trip miles",
+                "total_fare": "Total fare",
+                "provider": "Provider",
+            },
+        )
 
-with left_col:
-    fig_hourly = px.line(
-        hourly_plot,
-        x="pickup_hour",
-        y="trip_count",
-        color="provider",
-        markers=True,
-        title=f"Ride-Hailing Demand by Pickup Hour ({HOUR_LABELS[start_hour]} to {HOUR_LABELS[end_hour]})",
-        labels={
-            "pickup_hour": "Pickup time",
-            "trip_count": "Trip count",
-            "provider": "Provider",
-        },
-        custom_data=["hour_label"],
+        st.plotly_chart(fig_fare_distance, use_container_width=True)
+
+        fare_distance_corr = filtered_trip_sample[["trip_miles", "total_fare"]].corr().iloc[0, 1]
+
+        st.metric(
+            "Fare-distance correlation in sample",
+            f"{fare_distance_corr:.2f}",
+        )
+
+    st.subheader("Filtered Hourly Metrics Data")
+
+    st.dataframe(
+        filtered_hourly,
+        hide_index=True,
+        use_container_width=True,
     )
-
-    fig_hourly.update_traces(
-        hovertemplate="<b>%{customdata[0]}</b><br>%{y:,.0f} trips<extra>%{fullData.name}</extra>"
-    )
-
-    fig_hourly.update_xaxes(
-        tickmode="array",
-        tickvals=[0, 3, 6, 9, 12, 15, 18, 21, 23],
-        ticktext=[HOUR_LABELS[h] for h in [0, 3, 6, 9, 12, 15, 18, 21, 23]],
-    )
-
-    fig_hourly.update_layout(hovermode="x unified")
-
-    st.plotly_chart(fig_hourly, use_container_width=True)
-
-with right_col:
-    heatmap_data = filtered_day_hour.pivot_table(
-        index="pickup_day",
-        columns="pickup_hour",
-        values="trip_count",
-        aggfunc="sum",
-        fill_value=0,
-    ).reindex(DAY_ORDER)
-
-    fig_heatmap = px.imshow(
-        heatmap_data,
-        aspect="auto",
-        color_continuous_scale="YlGnBu",
-        title="Trip Demand by Day and Hour",
-        labels={
-            "x": "Pickup time",
-            "y": "Pickup day",
-            "color": "Trips",
-        },
-    )
-
-    fig_heatmap.update_xaxes(
-        tickmode="array",
-        tickvals=[0, 3, 6, 9, 12, 15, 18, 21, 23],
-        ticktext=[HOUR_LABELS[h] for h in [0, 3, 6, 9, 12, 15, 18, 21, 23]],
-    )
-
-    st.plotly_chart(fig_heatmap, use_container_width=True)
-
-st.header("Pickup Location Patterns")
-
-filtered_pickup_zones = pickup_zones[
-    pickup_zones["provider"].isin(selected_providers)
-    & pickup_zones["Borough"].isin(selected_boroughs)
-].copy()
-
-top_pickup_zones = (
-    filtered_pickup_zones.groupby(["pickup_zone", "Borough", "Zone"], as_index=False)
-    .agg(
-        trip_count=("trip_count", "sum"),
-        avg_fare=("avg_fare", "mean"),
-        avg_miles=("avg_miles", "mean"),
-        avg_minutes=("avg_minutes", "mean"),
-    )
-    .sort_values("trip_count", ascending=False)
-    .head(10)
-)
-
-fig_pickup_zones = px.bar(
-    top_pickup_zones.sort_values("trip_count"),
-    x="trip_count",
-    y="pickup_zone",
-    color="Borough",
-    orientation="h",
-    title="Top 10 Pickup Areas",
-    labels={
-        "trip_count": "Trip count",
-        "pickup_zone": "Pickup area",
-        "Borough": "Borough",
-    },
-)
-
-st.plotly_chart(fig_pickup_zones, use_container_width=True)
-
-st.dataframe(
-    top_pickup_zones,
-    hide_index=True,
-    use_container_width=True,
-)
-
-st.header("Provider Comparison")
-
-provider_summary = (
-    filtered_hourly.groupby("provider", as_index=False)
-    .agg(
-        trip_count=("trip_count", "sum"),
-        avg_fare=("avg_fare", "mean"),
-        avg_miles=("avg_miles", "mean"),
-        avg_minutes=("avg_minutes", "mean"),
-    )
-    .sort_values("trip_count", ascending=False)
-)
-
-provider_summary_long = provider_summary.melt(
-    id_vars="provider",
-    value_vars=["avg_fare", "avg_miles", "avg_minutes"],
-    var_name="metric",
-    value_name="value",
-)
-
-provider_summary_long["metric"] = provider_summary_long["metric"].map(
-    {
-        "avg_fare": "Average Fare",
-        "avg_miles": "Average Miles",
-        "avg_minutes": "Average Minutes",
-    }
-)
-
-left_col, right_col = st.columns(2)
-
-with left_col:
-    fig_provider_trips = px.bar(
-        provider_summary,
-        x="provider",
-        y="trip_count",
-        color="provider",
-        title="Trip Count by Provider",
-        labels={
-            "provider": "Provider",
-            "trip_count": "Trip count",
-        },
-    )
-
-    st.plotly_chart(fig_provider_trips, use_container_width=True)
-
-with right_col:
-    fig_provider_metrics = px.bar(
-        provider_summary_long,
-        x="provider",
-        y="value",
-        color="metric",
-        barmode="group",
-        title="Average Trip Metrics by Provider",
-        labels={
-            "provider": "Provider",
-            "value": "Value",
-            "metric": "Metric",
-        },
-    )
-
-    st.plotly_chart(fig_provider_metrics, use_container_width=True)
-
-st.dataframe(
-    provider_summary,
-    hide_index=True,
-    use_container_width=True,
-)
-
-st.header("Fare and Distance Relationship")
-
-if filtered_trip_sample.empty:
-    st.warning("No sampled trips match the selected filters.")
-else:
-    fig_fare_distance = px.scatter(
-        filtered_trip_sample,
-        x="trip_miles",
-        y="total_fare",
-        color="provider",
-        hover_name="pickup_zone",
-        hover_data={
-            "Borough": True,
-            "pickup_day": True,
-            "hour_label": True,
-            "trip_minutes": ":.1f",
-            "fare_per_mile": ":$.2f",
-            "provider": False,
-        },
-        opacity=0.5,
-        title="Total Fare vs Trip Distance",
-        labels={
-            "trip_miles": "Trip miles",
-            "total_fare": "Total fare",
-            "provider": "Provider",
-        },
-    )
-
-    st.plotly_chart(fig_fare_distance, use_container_width=True)
-
-    fare_distance_corr = filtered_trip_sample[["trip_miles", "total_fare"]].corr().iloc[0, 1]
-
-    st.metric(
-        "Fare-distance correlation in sample",
-        f"{fare_distance_corr:.2f}",
-    )
-
-st.subheader("Filtered Hourly Metrics Data")
-
-st.dataframe(
-    filtered_hourly,
-    hide_index=True,
-    use_container_width=True,
-)
