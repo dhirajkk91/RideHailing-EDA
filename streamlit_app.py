@@ -10,6 +10,7 @@ HOURLY_PATH = Path("dashboard_data/hourly_metrics.csv")
 DAY_HOUR_PATH = Path("dashboard_data/day_hour_metrics.csv")
 PICKUP_ZONE_PATH = Path("dashboard_data/pickup_zone_metrics.csv")
 ZONE_LOOKUP_PATH = Path("dashboard_data/taxi_zone_lookup.csv")
+TRIP_SAMPLE_PATH = Path("dashboard_data/trip_sample.csv")
 
 DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -29,6 +30,7 @@ def load_data():
     hourly = pd.read_csv(HOURLY_PATH, parse_dates=["pickup_date"])
     day_hour = pd.read_csv(DAY_HOUR_PATH, parse_dates=["pickup_date"])
     pickup_zones = pd.read_csv(PICKUP_ZONE_PATH)
+    trip_sample = pd.read_csv(TRIP_SAMPLE_PATH, parse_dates=["pickup_date"])
 
     zone_lookup = pd.read_csv(ZONE_LOOKUP_PATH)
     zone_lookup = zone_lookup.rename(columns={"LocationID": "PULocationID"})
@@ -40,13 +42,20 @@ def load_data():
         how="left",
     )
 
+    trip_sample = trip_sample.merge(
+        zone_lookup[["PULocationID", "Borough", "Zone", "pickup_zone"]],
+        on="PULocationID",
+        how="left",
+    )
+
     hourly["hour_label"] = hourly["pickup_hour"].map(HOUR_LABELS)
     day_hour["hour_label"] = day_hour["pickup_hour"].map(HOUR_LABELS)
+    trip_sample["hour_label"] = trip_sample["pickup_hour"].map(HOUR_LABELS)
 
-    return summary, hourly, day_hour, pickup_zones
+    return summary, hourly, day_hour, pickup_zones, trip_sample
 
 
-summary, hourly, day_hour, pickup_zones = load_data()
+summary, hourly, day_hour, pickup_zones, trip_sample = load_data()
 summary_row = summary.iloc[0]
 
 st.sidebar.header("Filters")
@@ -127,6 +136,13 @@ hourly_plot = (
     filtered_hourly.groupby(["provider", "pickup_hour", "hour_label"], as_index=False)
     .agg(trip_count=("trip_count", "sum"))
 )
+
+filtered_trip_sample = trip_sample[
+    trip_sample["provider"].isin(selected_providers)
+    & trip_sample["Borough"].isin(selected_boroughs)
+    & trip_sample["pickup_hour"].isin(selected_hours)
+    & trip_sample["pickup_date"].between(start_date, end_date)
+].copy()
 
 filtered_trip_count = filtered_hourly["trip_count"].sum()
 
@@ -306,6 +322,111 @@ st.dataframe(
     hide_index=True,
     use_container_width=True,
 )
+
+st.header("Provider Comparison")
+
+provider_summary = (
+    filtered_hourly.groupby("provider", as_index=False)
+    .agg(
+        trip_count=("trip_count", "sum"),
+        avg_fare=("avg_fare", "mean"),
+        avg_miles=("avg_miles", "mean"),
+        avg_minutes=("avg_minutes", "mean"),
+    )
+    .sort_values("trip_count", ascending=False)
+)
+
+provider_summary_long = provider_summary.melt(
+    id_vars="provider",
+    value_vars=["avg_fare", "avg_miles", "avg_minutes"],
+    var_name="metric",
+    value_name="value",
+)
+
+provider_summary_long["metric"] = provider_summary_long["metric"].map(
+    {
+        "avg_fare": "Average Fare",
+        "avg_miles": "Average Miles",
+        "avg_minutes": "Average Minutes",
+    }
+)
+
+left_col, right_col = st.columns(2)
+
+with left_col:
+    fig_provider_trips = px.bar(
+        provider_summary,
+        x="provider",
+        y="trip_count",
+        color="provider",
+        title="Trip Count by Provider",
+        labels={
+            "provider": "Provider",
+            "trip_count": "Trip count",
+        },
+    )
+
+    st.plotly_chart(fig_provider_trips, use_container_width=True)
+
+with right_col:
+    fig_provider_metrics = px.bar(
+        provider_summary_long,
+        x="provider",
+        y="value",
+        color="metric",
+        barmode="group",
+        title="Average Trip Metrics by Provider",
+        labels={
+            "provider": "Provider",
+            "value": "Value",
+            "metric": "Metric",
+        },
+    )
+
+    st.plotly_chart(fig_provider_metrics, use_container_width=True)
+
+st.dataframe(
+    provider_summary,
+    hide_index=True,
+    use_container_width=True,
+)
+
+st.header("Fare and Distance Relationship")
+
+if filtered_trip_sample.empty:
+    st.warning("No sampled trips match the selected filters.")
+else:
+    fig_fare_distance = px.scatter(
+        filtered_trip_sample,
+        x="trip_miles",
+        y="total_fare",
+        color="provider",
+        hover_name="pickup_zone",
+        hover_data={
+            "Borough": True,
+            "pickup_day": True,
+            "hour_label": True,
+            "trip_minutes": ":.1f",
+            "fare_per_mile": ":$.2f",
+            "provider": False,
+        },
+        opacity=0.5,
+        title="Total Fare vs Trip Distance",
+        labels={
+            "trip_miles": "Trip miles",
+            "total_fare": "Total fare",
+            "provider": "Provider",
+        },
+    )
+
+    st.plotly_chart(fig_fare_distance, use_container_width=True)
+
+    fare_distance_corr = filtered_trip_sample[["trip_miles", "total_fare"]].corr().iloc[0, 1]
+
+    st.metric(
+        "Fare-distance correlation in sample",
+        f"{fare_distance_corr:.2f}",
+    )
 
 st.subheader("Filtered Hourly Metrics Data")
 

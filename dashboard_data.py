@@ -49,6 +49,8 @@ def clean_data(df):
     clean_df["total_fare"] = (
         clean_df["base_passenger_fare"] + clean_df["tolls"] + clean_df["tips"]
     )
+    clean_df["fare_per_mile"] = clean_df["total_fare"] / clean_df["trip_miles"]
+    clean_df["speed_mph"] = clean_df["trip_miles"] / (clean_df["trip_minutes"] / 60)
     clean_df["pickup_date"] = clean_df["pickup_datetime"].dt.date
     clean_df["pickup_hour"] = clean_df["pickup_datetime"].dt.hour
     clean_df["pickup_day"] = clean_df["pickup_datetime"].dt.day_name()
@@ -119,6 +121,33 @@ def build_pickup_zone_metrics(clean_df):
     )
 
     return pickup_zone_metrics
+
+def build_trip_sample(clean_df):
+    sample_size = min(50000, len(clean_df))
+
+    trip_sample = clean_df.sample(n=sample_size, random_state=42)[
+        [
+            "provider",
+            "pickup_date",
+            "pickup_day",
+            "pickup_hour",
+            "PULocationID",
+            "trip_miles",
+            "trip_minutes",
+            "total_fare",
+            "fare_per_mile",
+            "speed_mph",
+            "driver_pay",
+        ]
+    ].copy()
+
+    trip_sample = trip_sample[
+        (trip_sample["trip_miles"].between(0, 60))
+        & (trip_sample["total_fare"].between(0, 250))
+        & (trip_sample["speed_mph"].between(0, 80))
+    ]
+
+    return trip_sample
     
 def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
@@ -129,18 +158,20 @@ def main():
     hourly_metrics = build_hourly_metrics(clean_df)
     day_hour_metrics = build_day_hour_metrics(clean_df)
     pickup_zone_metrics = build_pickup_zone_metrics(clean_df)
+    trip_sample = build_trip_sample(clean_df)
 
     summary.to_csv(OUTPUT_DIR / "summary.csv", index=False)
     hourly_metrics.to_csv(OUTPUT_DIR / "hourly_metrics.csv", index=False)
     day_hour_metrics.to_csv(OUTPUT_DIR / "day_hour_metrics.csv", index=False)
     pickup_zone_metrics.to_csv(OUTPUT_DIR / "pickup_zone_metrics.csv", index=False)
+    trip_sample.to_csv(OUTPUT_DIR / "trip_sample.csv", index=False)
 
     print("Created dashboard_data/summary.csv")
     print("Created dashboard_data/hourly_metrics.csv")
     print("Created dashboard_data/day_hour_metrics.csv")
     print("Created dashboard_data/pickup_zone_metrics.csv")
     print(pickup_zone_metrics.head().to_string(index=False))
-
+    print("Created dashboard_data/trip_sample.csv")
 
 if __name__ == "__main__":
     main()
