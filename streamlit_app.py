@@ -46,6 +46,44 @@ selected_providers = st.sidebar.multiselect(
     default=providers,
 )
 
+st.sidebar.markdown("Pickup time range")
+
+from_col, to_col = st.sidebar.columns(2)
+
+start_hour = from_col.selectbox(
+    "From",
+    options=list(range(24)),
+    index=0,
+    format_func=lambda hour: HOUR_LABELS[hour],
+)
+
+end_hour = to_col.selectbox(
+    "To",
+    options=list(range(24)),
+    index=23,
+    format_func=lambda hour: HOUR_LABELS[hour],
+)
+
+st.sidebar.caption(f"{HOUR_LABELS[start_hour]} to {HOUR_LABELS[end_hour]}")
+
+
+if start_hour <= end_hour:
+    selected_hours = list(range(start_hour, end_hour + 1))
+else:
+    selected_hours = list(range(start_hour, 24)) + list(range(0, end_hour + 1))
+
+
+filtered_hourly = hourly[
+    hourly["provider"].isin(selected_providers)
+    & hourly["pickup_hour"].isin(selected_hours)
+].copy()
+
+filtered_day_hour = day_hour[
+    day_hour["provider"].isin(selected_providers)
+    & day_hour["pickup_hour"].isin(selected_hours)
+].copy()
+
+
 filtered_hourly = hourly[hourly["provider"].isin(selected_providers)].copy()
 filtered_day_hour = day_hour[day_hour["provider"].isin(selected_providers)].copy()
 
@@ -71,7 +109,7 @@ with left_col:
         y="trip_count",
         color="provider",
         markers=True,
-        title="Ride-Hailing Demand by Pickup Hour",
+        title=f"Ride-Hailing Demand by Pickup Hour ({HOUR_LABELS[start_hour]} to {HOUR_LABELS[end_hour]})",
         labels={
             "pickup_hour": "Pickup time",
             "trip_count": "Trip count",
