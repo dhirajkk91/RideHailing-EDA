@@ -3,5 +3,7 @@ numpy
 matplotlib
 seaborn
 pyarrow
+jupyter
+ipykernel
 streamlit
 plotly

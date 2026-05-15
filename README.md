@@ -2,7 +2,7 @@
 
 Author: Dhiraj Karki
 
-This project analyzes January 2026 high-volume ride-hailing trips in New York City using NYC Taxi & Limousine Commission trip records. The project includes a data cleaning and EDA notebook, a dashboard data preparation script, a Streamlit dashboard prototype, and a written Milestone 3 narrative.
+This project analyzes January 2026 high-volume ride-hailing trips in New York City using NYC Taxi & Limousine Commission trip records. The project includes a data cleaning and EDA notebook, a dashboard data preparation script, a Streamlit dashboard.
 
 The main project question is:
 
@@ -12,14 +12,20 @@ The main project question is:
 
 - `data.ipynb` - Jupyter notebook for data loading, cleaning, feature engineering, and exploratory data analysis.
 - `dashboard_data.py` - Script that creates precomputed CSV files for the Streamlit dashboard.
-- `streamlit_app.py` - Streamlit dashboard prototype with interactive Plotly visualizations.
-- `milestone_3_draft.md` - Draft written narrative for Milestone 3 covering question, findings, and limitations.
+- `streamlit_app.py` - Streamlit dashboard with interactive Plotly visualizations.
 - `dashboard_data/` - Generated dashboard data files, including summary tables, demand aggregates, pickup zone metrics, trip sample data, and TLC taxi zone lookup data.
 - `requirements.txt` - Python packages required for the project.
 
 ## Data Source
 
 The project uses the January 2026 NYC TLC High Volume For-Hire Vehicle trip record file. The dashboard also uses the official TLC taxi zone lookup table to convert pickup location IDs into readable borough and zone names.
+
+Expected local input files:
+
+- `fhvhv_tripdata_2026-01.parquet` in the project root
+- `dashboard_data/taxi_zone_lookup.csv` from the NYC TLC taxi zone lookup table
+
+The large parquet file is ignored by Git because of its size. The dashboard preparation script creates the project summary and aggregate CSV files from the parquet file; the taxi zone lookup file is kept separately because it is a small official reference table used for readable location labels.
 
 Provider mapping:
 
@@ -67,7 +73,7 @@ This creates:
 - `dashboard_data/pickup_zone_metrics.csv`
 - `dashboard_data/trip_sample.csv`
 
-### 3. Streamlit Dashboard Prototype
+### 3. Streamlit Dashboard
 
 The dashboard includes tabs for:
 
@@ -129,9 +135,3 @@ Run the Streamlit dashboard:
 streamlit run streamlit_app.py
 ```
 
-## Milestone 3 Deliverables
-
-- Working Streamlit dashboard prototype: `streamlit_app.py`
-- At least two interactive Plotly views: included in the Demand Timing tab and additional dashboard tabs
-- Draft written narrative: `milestone_3_draft.md`
-- Dashboard data preparation pipeline: `dashboard_data.py`

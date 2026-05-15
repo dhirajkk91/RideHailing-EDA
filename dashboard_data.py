@@ -1,7 +1,5 @@
 from pathlib import Path
-
 import pandas as pd
-
 
 DATA_PATH = Path("fhvhv_tripdata_2026-01.parquet")
 OUTPUT_DIR = Path("dashboard_data")
@@ -26,6 +24,7 @@ PROVIDER_MAP = {
 }
 
 def clean_data(df):
+    # Cleaning invalid trips
     invalid_miles = df["trip_miles"] <= 0
     invalid_time = df["trip_time"] <= 0
     invalid_fare = df["base_passenger_fare"] <= 0
@@ -75,6 +74,7 @@ def clean_data(df):
 
 
 def build_hourly_metrics(clean_df):
+    # Aggregating trip demand and average trip metrics by provider, date, day, and hour.
     hourly_metrics = (
         clean_df.groupby(
             ["provider", "pickup_date", "pickup_day", "day_order", "pickup_hour"],
@@ -92,6 +92,7 @@ def build_hourly_metrics(clean_df):
 
 
 def build_day_hour_metrics(clean_df):
+    # Creating the day-hour table for the dashboard heatmap.
     day_hour_metrics = (
         clean_df.groupby(
             ["provider", "pickup_date", "pickup_day", "day_order", "pickup_hour"],
@@ -109,8 +110,12 @@ def build_day_hour_metrics(clean_df):
     return day_hour_metrics
 
 def build_pickup_zone_metrics(clean_df):
+    # Aggregating pickup zones by provider/date/hour.
     pickup_zone_metrics = (
-        clean_df.groupby(["provider", "PULocationID"], as_index=False)
+        clean_df.groupby(
+            ["provider", "pickup_date", "pickup_day", "day_order", "pickup_hour", "PULocationID"],
+            as_index=False,
+        )
         .agg(
             trip_count=("pickup_datetime", "size"),
             avg_fare=("total_fare", "mean"),
@@ -123,6 +128,7 @@ def build_pickup_zone_metrics(clean_df):
     return pickup_zone_metrics
 
 def build_trip_sample(clean_df):
+    # Sampling trip-level records for the fare-distance scatterplot.
     sample_size = min(50000, len(clean_df))
 
     trip_sample = clean_df.sample(n=sample_size, random_state=42)[
@@ -148,7 +154,7 @@ def build_trip_sample(clean_df):
     ]
 
     return trip_sample
-    
+
 def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
 
